@@ -179,7 +179,9 @@ mod songnft {
         pub fn mint(&mut self, token_id: TokenId, value: Balance) -> Result<()> {
             let caller = self.env().caller();
             ensure!(self.balances.contains((caller, token_id)), Error::UnexistentTokenOrCallerNotOwner);
-            self.balances.insert((caller, token_id), &value);
+            let balance = self.balances.get((caller, token_id)).unwrap_or(0);
+            let new_balance = balance.checked_add(value).unwrap();
+            self.balances.insert((caller, token_id), &new_balance);
 
             self.env().emit_event(TransferSingle {
                 operator: Some(caller),
