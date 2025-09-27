@@ -44,6 +44,8 @@ pub enum Error {
     /// The number of tokens being transferred does not match the specified number of
     /// transfers.
     BatchTransferMismatch,
+    /// The token ID already exists.
+    TokenAlreadyExists,
 }
 
 // The ERC-1155 result types.
@@ -241,29 +243,18 @@ mod songnft {
         /// Which accounts (called operators) have been approved to spend funds on behalf
         /// of an owner.
         approvals: Mapping<(Owner, Operator), ()>,
-        /// A unique identifier for the tokens which have been minted (and are therefore
-        /// supported) by this contract.
-        token_id_nonce: TokenId,
     }
 
     impl Contract {
-        /// Initialize a default instance of this ERC-1155 implementation.
         #[ink(constructor)]
         pub fn new() -> Self {
             Default::default()
         }
 
-        /// Create the initial supply for a token.
-        ///
-        /// The initial supply will be provided to the caller (a.k.a the minter), and the
-        /// `token_id` will be assigned by the smart contract.
-        ///
-        /// Note that as implemented anyone can create tokens. If you were to instantiate
-        /// this contract in a production environment you'd probably want to lock down
-        /// the addresses that are allowed to create tokens.
         #[ink(message)]
-        pub fn create(&mut self, value: Balance, token_id: u128) -> TokenId {
+        pub fn create(&mut self, value: Balance, token_id: u128) -> Result<TokenId> {
             let caller = self.env().caller();
+            ensure!(!self.balances.contains((caller, token_id)), Error::TokenAlreadyExists);
             self.balances.insert((caller, token_id), &value);
 
             // Emit transfer event but with mint semantics
@@ -271,11 +262,10 @@ mod songnft {
                 operator: Some(caller),
                 from: None,
                 to: if value == 0 { None } else { Some(caller) },
-                token_id: self.token_id_nonce,
+                token_id: token_id,
                 value,
             });
-
-            self.token_id_nonce
+            Ok(token_id)
         }
 
         /// Mint a `value` amount of `token_id` tokens.
@@ -780,7 +770,7 @@ mod songnft {
             let mut erc = Contract::new();
 
             set_sender(alice());
-            assert_eq!(erc.create(0, 1u128), 0);
+            assert_eq!(erc.create(0, 1u128).unwrap(), 1u128);
             assert_eq!(erc.balance_of(alice(), 1u128), 0);
 
             assert!(erc.mint(1u128, 123).is_ok());
