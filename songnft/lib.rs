@@ -46,6 +46,8 @@ pub enum Error {
     BatchTransferMismatch,
     /// The token ID already exists.
     TokenAlreadyExists,
+    /// The token ID does not exist or the caller is not the owner of the token.
+    UnexistentTokenOrCallerNotOwner,
 }
 
 // The ERC-1155 result types.
@@ -257,7 +259,6 @@ mod songnft {
             ensure!(!self.balances.contains((caller, token_id)), Error::TokenAlreadyExists);
             self.balances.insert((caller, token_id), &value);
 
-            // Emit transfer event but with mint semantics
             self.env().emit_event(TransferSingle {
                 operator: Some(caller),
                 from: None,
@@ -268,22 +269,12 @@ mod songnft {
             Ok(token_id)
         }
 
-        /// Mint a `value` amount of `token_id` tokens.
-        ///
-        /// It is assumed that the token has already been `create`-ed. The newly minted
-        /// supply will be assigned to the caller (a.k.a the minter).
-        ///
-        /// Note that as implemented anyone can mint tokens. If you were to instantiate
-        /// this contract in a production environment you'd probably want to lock down
-        /// the addresses that are allowed to mint tokens.
         #[ink(message)]
         pub fn mint(&mut self, token_id: TokenId, value: Balance) -> Result<()> {
             let caller = self.env().caller();
-            // NOTE: check if it is possible to add this check
-            // ensure!(self.balances.contains(caller, token_id), Error::UnexistentToken);
+            ensure!(self.balances.contains((caller, token_id)), Error::UnexistentTokenOrCallerNotOwner);
             self.balances.insert((caller, token_id), &value);
 
-            // Emit transfer event but with mint semantics
             self.env().emit_event(TransferSingle {
                 operator: Some(caller),
                 from: None,
